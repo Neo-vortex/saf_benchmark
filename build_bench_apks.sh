@@ -109,15 +109,19 @@ for variant in orig jni; do
     echo "Running flutter pub get ($variant)..."
     flutter pub get
 
-    # If this is the JNI variant and it ships jnigen.yaml with a not-yet-run
-    # codegen step, generate the bindings now. Safe to skip if jnigen/dart
-    # run fails -- surfaces as a clear build error below instead of silently
-    # building stale/missing bindings.
+    # If this is the JNI variant, generate the JNI bindings now. This is
+    # fatal on failure -- letting it continue silently is exactly what
+    # caused a confusing downstream Dart compile error
+    # ("saf_stream_jni_bindings.dart: No such file or directory") instead of
+    # surfacing the real jnigen problem here.
     if [[ -f "$plugin_root/jnigen.yaml" ]]; then
       echo "Running jnigen for $variant plugin..."
-      (cd "$plugin_root" && dart run jnigen --config jnigen.yaml) || {
-        echo "Warning: jnigen codegen failed for $variant -- build will likely fail if bindings are missing." >&2
-      }
+      (cd "$plugin_root" && dart run jnigen --config jnigen.yaml)
+      bindings_file="$plugin_root/lib/src/saf_stream_jni_bindings.dart"
+      if [[ ! -f "$bindings_file" ]]; then
+        echo "Error: jnigen reported success but did not produce $bindings_file" >&2
+        exit 1
+      fi
     fi
 
     echo "Building APK ($variant)..."
