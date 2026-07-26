@@ -60,6 +60,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
   String? _treeUri;
   bool _running = false;
   String _status = '';
+  final List<String> _errors = [];
   final List<BenchResult> _results = [];
 
   // Chunk/buffer sizes to sweep. Small sizes are where MethodChannel
@@ -142,6 +143,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
       _running = true;
       _status = 'Preparing test data...';
       _results.clear();
+      _errors.clear();
     });
 
     final fileSizeBytes = _fileSizeMB * 1024 * 1024;
@@ -172,8 +174,13 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
               'Chunk $label — run ${r + 1}/$_repeats (read)...');
           final readMs = await _timedRead(match.uri, chunkSize, fileSizeBytes);
           readTimes.add(readMs);
-        } catch (e) {
-          setState(() => _status = 'Error on $label run $r: $e');
+        } catch (e, st) {
+          final msg = 'Error on $label run $r: $e\n$st';
+          debugPrint(msg);
+          setState(() {
+            _status = 'Error on $label run $r (see error log below)';
+            _errors.add(msg);
+          });
         }
       }
 
@@ -271,6 +278,42 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
             ),
             const SizedBox(height: 8),
             Text(_status),
+            if (_errors.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_errors.length} error(s) — full text below (also printed to logcat)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      _errors.join('\n\n---\n\n'),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _errors.join('\n\n---\n\n')));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Errors copied to clipboard')),
+                        );
+                      },
+                      child: const Text('Copy errors'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (_results.isNotEmpty) ...[
               Table(
