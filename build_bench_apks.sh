@@ -108,36 +108,6 @@ for variant in orig jni; do
     cd "$example_dir"
     echo "Running flutter pub get ($variant)..."
     flutter pub get
-
-    if [[ -f "$plugin_root/jnigen.yaml" ]]; then
-      # Bootstrap sequence, entirely on this CI runner (GitHub-hosted
-      # ubuntu-latest already has a JDK + Android SDK preinstalled -- no
-      # Android Studio or local machine setup needed):
-      #
-      #  1. Build once against the committed PLACEHOLDER bindings
-      #     (lib/src/saf_stream_jni_bindings.dart). It compiles fine -- its
-      #     methods just throw if actually called at runtime -- and this is
-      #     purely so Gradle resolves & caches the androidx/kotlin
-      #     dependency classpath, which is what jnigen's `add_gradle_deps`
-      #     needs to have happened at least once before it can run.
-      #  2. Run jnigen for real. It overwrites the placeholder with real
-      #     generated bindings.
-      #  3. Rebuild for real, now against the real bindings -- this is the
-      #     APK that actually gets shipped.
-      echo "Warm-up build for $variant (populates Gradle classpath cache for jnigen)..."
-      flutter build apk --release -t lib/bench_main.dart
-
-      echo "Running jnigen for $variant plugin..."
-      (cd "$plugin_root" && dart run jnigen --config jnigen.yaml)
-
-      bindings_file="$plugin_root/lib/src/saf_stream_jni_bindings.dart"
-      if grep -q "PLACEHOLDER" "$bindings_file" 2>/dev/null; then
-        echo "Error: $bindings_file still looks like the placeholder after running jnigen." >&2
-        exit 1
-      fi
-      echo "jnigen bindings generated for $variant."
-    fi
-
     echo "Building APK ($variant)..."
     flutter build apk --release -t lib/bench_main.dart
   )
